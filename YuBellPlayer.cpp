@@ -1,21 +1,16 @@
 /**
- * @brief DumbPlayer AI for battleships
- * @file DumbPlayerV2.cpp
- * @author Stefan Brandle, Jonathan Geisler
- * @date September, 2004 Updated 2015 for multi-round play.
+ * @brief AI for battleships
+ * @file YuBellPlayer.cpp
+ * @author Edric Yu, Alison Bell
+ * @date April 2017
  *
- * This Battleships AI is very simple and does nothing beyond playing
- * a legal game. However, that makes it a good starting point for writing
- * a more sophisticated AI.
- *
- * The constructor
  */
 
 #include <iostream>
 #include <cstdio>
 
 #include "conio.h"
-#include "DumbPlayerV2.h"
+#include "YuBellPlayer.h"
 
 using namespace conio;
 
@@ -25,13 +20,14 @@ using namespace conio;
  *
  * The constructor runs when the AI is instantiated (the object gets created)
  * and is responsible for initializing everything that needs to be initialized
- * before any of the rounds happen. The constructor does not get called 
+ * before any of the rounds happen. The constructor does not get called
  * before rounds; newRound() gets called before every round.
  */
 YuBellPlayer::YuBellPlayer( int boardSize )
     :PlayerV2(boardSize)
 {
-    // Could do any initialization of inter-round data structures here.
+    // Initialize inter-round structures
+    initializeProbMap(this->opponentsHits);
 }
 
 /**
@@ -46,30 +42,73 @@ YuBellPlayer::~YuBellPlayer( ) {}
  */
 void YuBellPlayer::initializeBoard() {
     for(int row=0; row<boardSize; row++) {
-	for(int col=0; col<boardSize; col++) {
-	    this->board[row][col] = WATER;
-	}
+	     for(int col=0; col<boardSize; col++) {
+	        this->board[row][col] = WATER;
+	     }
     }
+}
+
+void YuBellPlayer::initializeProbMap(int probMap[MAX_BOARD_SIZE][MAX_BOARD_SIZE]) {
+  int edge = boardSize - 1;
+
+	//corners
+	probMap[0][0] = 2;
+	probMap[0][edge] = 2;
+	probMap[edge][0] = 2;
+	probMap[edge][edge] = 2;
+
+	//edges
+	for (int i = 1; i < edge; i++) {
+		probMap[0][i] = 3;
+		probMap[edge][i] = 3;
+		probMap[i][0] = 3;
+		probMap[i][edge] = 3;
+	}
+
+	//the rest of the board, with increasing probabilities as we get closer to the center
+	for (int round = 1; round < (boardSize/2); ++round) {
+		for (int i = round; i <= edge - round; ++i) {
+			probMap[round][i] = round + 3;
+			probMap[i][round] = round + 3;
+			probMap[edge - round][i] = round + 3;
+			probMap[i][edge - round] = round + 3;
+		}
+	}
+
+	//if the boardSize is odd, there will be one last center position to put a probability in
+	if ((boardSize % 2) == 1) {
+		probMap[boardSize/2][boardSize/2] = (boardSize/2) + 2;
+	}
+}
+
+void YuBellPlayer::printProbMap() {
+  for (int row = 0; row < boardSize; row++) {
+		for (int col = 0; col < boardSize; col++) {
+      cout << conio::gotoRowCol(20 + row, 30 + col) << opponentsHits[row][col] << " " << flush;
+		}
+    cout << endl;
+	}
+  cout << endl << endl;
 }
 
 
 /**
  * @brief Specifies the AI's shot choice and returns the information to the caller.
- * @return Message The most important parts of the returned message are 
- * the row and column values. 
+ * @return Message The most important parts of the returned message are
+ * the row and column values.
  *
- * See the Message class documentation for more information on the 
+ * See the Message class documentation for more information on the
  * Message constructor.
  */
 Message YuBellPlayer::getMove() {
     lastCol++;
     if( lastCol >= boardSize ) {
-	lastCol = 0;
-	lastRow++;
+    	lastCol = 0;
+    	lastRow++;
     }
     if( lastRow >= boardSize ) {
-	lastCol = 0;
-	lastRow = 0;
+    	lastCol = 0;
+    	lastRow = 0;
     }
 
     Message result( SHOT, lastRow, lastCol, "Bang", None, 1 );
@@ -81,7 +120,7 @@ Message YuBellPlayer::getMove() {
  * The AI show reinitialize any intra-round data structures.
  */
 void YuBellPlayer::newRound() {
-    /* DumbPlayer is too simple to do any inter-round learning. Smarter players 
+    /* DumbPlayer is too simple to do any inter-round learning. Smarter players
      * reinitialize any round-specific data structures here.
      */
     this->lastRow = 0;
@@ -94,11 +133,11 @@ void YuBellPlayer::newRound() {
 /**
  * @brief Gets the AI's ship placement choice. This is then returned to the caller.
  * @param length The length of the ship to be placed.
- * @return Message The most important parts of the returned message are 
- * the direction, row, and column values. 
+ * @return Message The most important parts of the returned message are
+ * the direction, row, and column values.
  *
  * The parameters returned via the message are:
- * 1. the operation: must be PLACE_SHIP 
+ * 1. the operation: must be PLACE_SHIP
  * 2. ship top row value
  * 3. ship top col value
  * 4. a string for the ship name
@@ -135,10 +174,8 @@ void YuBellPlayer::update(Message msg) {
 	case TIE:
 	    break;
 	case OPPONENT_SHOT:
-	    // TODO: get rid of the cout, but replace in your AI with code that does something
-	    // useful with the information about where the opponent is shooting.
-	    //cout << gotoRowCol(20, 30) << "DumbPl: opponent shot at "<< msg.getRow() << ", " << msg.getCol() << flush;
+      //update probability information about the opponent's shots
+      this->opponentsHits[msg.getRow()][msg.getCol()]++;
 	    break;
     }
 }
-

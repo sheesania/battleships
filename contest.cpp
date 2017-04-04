@@ -24,6 +24,7 @@
 
 // Include your player here
 #include "TheAdmiral.h"
+#include "YuBellPlayer.h"
 
 //	Professor's contestants
 #include "DumbPlayerV2.h"
@@ -42,7 +43,7 @@ float secondsPerMove = 1;
 int boardSize;	// BoardSize
 int totalGames = 0;
 int totalCountedMoves = 0;
-const int NumPlayers = 4;
+const int NumPlayers = 2;
 
 int wins[NumPlayers][NumPlayers];
 int playerIds[NumPlayers];
@@ -50,11 +51,12 @@ int lives[NumPlayers];
 int winCount[NumPlayers];
 int statsShotsTaken[NumPlayers];
 int statsGamesCounted[NumPlayers];
-string playerNames[NumPlayers] = { 
+string playerNames[NumPlayers] = {
     "Dumb Player",
-    "Orig Gambler",
-    "Learning Gambler",
-	"The Admiral",
+  //   "Orig Gambler",
+  //   "Learning Gambler",
+	// "The Admiral",
+  "Yu/Bell Player",
 };
 
 
@@ -62,7 +64,7 @@ int main() {
     //bool silent = false;
 
     // Adjust based on the number of players!
-    // Initialize various win statistics 
+    // Initialize various win statistics
     for(int i=0; i<NumPlayers; i++) {
 	statsShotsTaken[i] = 0;
 	statsGamesCounted[i] = 0;
@@ -148,7 +150,7 @@ int main() {
 	    tiesInARow = 0;
 	}
 
-	cout << setw(2) << i+1-tiesInARow << ": " << playerNames[playerIds[i]] << " (Lives=" << lives[playerIds[i]] 
+	cout << setw(2) << i+1-tiesInARow << ": " << playerNames[playerIds[i]] << " (Lives=" << lives[playerIds[i]]
 	     << ", Wins=" << winCount[playerIds[i]] << ")";
 	if( tiesInARow!=0 && (i<NumPlayers-1 && lives[playerIds[1]] == lives[playerIds[1+1]] && winCount[playerIds[i]] == winCount[playerIds[i+1]] )) {
 	    cout << " -- tied ";
@@ -180,14 +182,14 @@ void playMatch( int player1Id, int player2Id, bool showMoves ) {
 
 	if( count==0 ) {
 	    silent = false;
-	    game = new AIContest( player1, playerNames[player1Id], 
+	    game = new AIContest( player1, playerNames[player1Id],
 				  player2, playerNames[player2Id],
 				  boardSize, silent );
 	    game->play( secondsPerMove, totalCountedMoves, player1Won, player2Won );
-	} 
+	}
 	else {
 	    silent = true;
-	    game = new AIContest( player1, playerNames[player1Id], 
+	    game = new AIContest( player1, playerNames[player1Id],
 				  player2, playerNames[player2Id],
 		      boardSize, silent );
 	    game->play( 0, totalCountedMoves, player1Won, player2Won );
@@ -217,15 +219,15 @@ void playMatch( int player1Id, int player2Id, bool showMoves ) {
 
     cout << endl << "********************" << endl;
     cout << playerNames[player1Id] << ": " << setTextStyle( NEGATIVE_IMAGE ) << "wins=" << matchWins[0] << resetAll()
-	 << " losses=" << totalGames-matchWins[0]-player1Ties 
+	 << " losses=" << totalGames-matchWins[0]-player1Ties
 	 << " ties=" << player1Ties << " (cumulative avg. shots/game = "
-	 << (statsGamesCounted[player1Id]==0 ? 0.0 : 
+	 << (statsGamesCounted[player1Id]==0 ? 0.0 :
 	    (float)statsShotsTaken[player1Id]/(float)statsGamesCounted[player1Id])
 	 << ")" << endl;
     cout << playerNames[player2Id] << ": " << setTextStyle( NEGATIVE_IMAGE ) << "wins=" << matchWins[1] << resetAll()
-	 << " losses=" << totalGames-matchWins[1]-player2Ties 
+	 << " losses=" << totalGames-matchWins[1]-player2Ties
 	 << " ties=" << player2Ties << " (cumulative avg. shots/game = "
-	 << (statsGamesCounted[player2Id]==0 ? 0.0 : 
+	 << (statsGamesCounted[player2Id]==0 ? 0.0 :
 	    (float)statsShotsTaken[player2Id]/(float)statsGamesCounted[player2Id])
 	 << ")" << endl;
     cout << "********************" << endl;
@@ -275,9 +277,10 @@ PlayerV2* getPlayer( int playerId, int boardSize ) {
     switch( playerId ) {
 	default:       // use 'default' to avoid compiler warning
 	case 0: return new DumbPlayerV2( boardSize );
-	case 1: return new OrigGamblerPlayerV2( boardSize );
-	case 2: return new LearningGambler2( boardSize );
-	case 3: return new TheAdmiral( boardSize );
+  case 1: return new YuBellPlayer( boardSize );
+	// case 1: return new OrigGamblerPlayerV2( boardSize );
+	// case 2: return new LearningGambler2( boardSize );
+	// case 3: return new TheAdmiral( boardSize );
+  // case 4: return new YuBellPlayer( boardSize );
     }
 }
-

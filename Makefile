@@ -34,6 +34,9 @@ DumbPlayerV2.cpp: DumbPlayerV2.h defines.h PlayerV2.h conio.cpp
 TheAdmiral.o: TheAdmiral.cpp Message.h
 TheAdmiral.cpp: TheAdmiral.h defines.h PlayerV2.h conio.cpp
 
+YuBellPlayer.o: YuBellPlayer.cpp Message.h
+YuBellPlayer.cpp: YuBellPlayer.h defines.h PlayerV2.h conio.cpp
+
 # CleanPlayerV2.o and other provided binaries are only available as a linkable Linux binary, not as source code.
 CleanPlayerV2.o: 
 	tar -xvf binaries.tar CleanPlayerV2.o

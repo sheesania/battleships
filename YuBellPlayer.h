@@ -26,7 +26,13 @@ class YuBellPlayer: public PlayerV2 {
 	Message getMove();
 	void update(Message msg);
 
+  void printProbMap(); //for testing
+
     private:
+
+  int opponentsHits[MAX_BOARD_SIZE][MAX_BOARD_SIZE]; //where the opponent has shot
+  void initializeProbMap(int probMap[MAX_BOARD_SIZE][MAX_BOARD_SIZE]); //populate a probability map with intial values
+
 	void initializeBoard();
         int lastRow;
         int lastCol;
