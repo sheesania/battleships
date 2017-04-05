@@ -16,7 +16,9 @@ using namespace std;
 struct Ship {
 	int row;
 	int col;
+	int length;
   Direction direction;
+	int score;
 };
 
 class YuBellPlayer: public PlayerV2 {
@@ -38,6 +40,8 @@ class YuBellPlayer: public PlayerV2 {
       int shipsPlaced[MAX_BOARD_SIZE][MAX_BOARD_SIZE]; //where we have placed ships this round
       void initializeProbMap(int probMap[MAX_BOARD_SIZE][MAX_BOARD_SIZE]); //populate a probability map with intial values
       void initializeShipsPlaced();
+      Ship scoreShipPlacement(Ship ship);
+      vector<Ship> getScoreAdjustedPositions(vector<Ship> positions);
 
     	void initializeBoard();
       int lastRow;

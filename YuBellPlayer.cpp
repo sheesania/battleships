@@ -9,6 +9,7 @@
 #include <iostream>
 #include <cstdio>
 #include <vector>
+#include <cstdlib>
 
 #include "conio.h"
 #include "YuBellPlayer.h"
@@ -29,6 +30,8 @@ YuBellPlayer::YuBellPlayer( int boardSize )
 {
     // Initialize inter-round structures
     initializeProbMap(this->opponentsHits);
+    
+    srand(time(NULL));
 }
 
 /**
@@ -90,6 +93,7 @@ void YuBellPlayer::initializeProbMap(int probMap[MAX_BOARD_SIZE][MAX_BOARD_SIZE]
 	}
 }
 
+//debugging function for printing map of opponents hits
 void YuBellPlayer::printProbMap() {
   for (int row = 0; row < boardSize; row++) {
 		for (int col = 0; col < boardSize; col++) {
@@ -173,7 +177,7 @@ Message YuBellPlayer::placeShip(int length) {
 
     vector<Ship> possiblePositions;
 
-    //possible horizontal positions
+    //find possible horizontal positions
     for (int row = 0; row < boardSize; ++row) {
       for (int col = 0; col < boardSize - length; ++col) {
         //see if a ship starting from this position would not run into any existing ships
@@ -183,23 +187,85 @@ Message YuBellPlayer::placeShip(int length) {
             shipFits = false;
           }
         }
+        //if it wouldn't, score the position and add to possible positions
         if (shipFits) {
-          Ship ship = {row, col, Horizontal};
+          Ship ship = {row, col, length, Horizontal, 1};
+          ship = scoreShipPlacement(ship);
           possiblePositions.push_back(ship);
         }
       }
     }
+    
+    //print possible positions
+    for (vector<Ship>::iterator it = possiblePositions.begin(); it < possiblePositions.end(); it++) {
+      cout << "Length " << length << ", " << it->row << ", " << it->col << ", score: " << it->score << endl;
+    }
+    
+    //get new list of possible positions adjusted for score, so more attractive positions appear more in the list
+    vector<Ship> possiblePositionsScored = getScoreAdjustedPositions(possiblePositions);
+    //choose a random position from this list
+    int random = rand() % possiblePositionsScored.size();
+    Ship shipPlacement = possiblePositionsScored.at(random);
+    
+    cout << "Chosen ship: " << shipPlacement.row << ", " << shipPlacement.col << ", length " << length << endl;
 
+    //update map of placed ships
+    for (int shipPart = shipPlacement.col; shipPart < shipPlacement.col + length; ++shipPart) {
+      shipsPlaced[shipPlacement.row][shipPart] = 1;
+    }
+    
+    //print map of placed ships
+    for (int row = 0; row < boardSize; ++row) {
+      for (int col = 0; col < boardSize; ++col) {
+        cout << shipsPlaced[row][col] << " ";
+      }
+      cout << endl;
+    }
+    printProbMap();
+    
+    //prepare response with chosen ship placement
     // parameters = mesg type (PLACE_SHIP), row, col, a string, direction (Horizontal/Vertical)
-    Message response( PLACE_SHIP, numShipsPlaced, 0, shipName, Horizontal, length );
+    Message response( PLACE_SHIP, shipPlacement.row, shipPlacement.col, shipName, Horizontal, length );
     numShipsPlaced++;
 
-    // update map of placed ships
-    for (int col = 0; col < length; ++col) {
-      shipsPlaced[numShipsPlaced][col] = 1;
-    }
-
     return response;
+}
+
+/**
+ * @brief Returns a Ship with updated placement score based on where opponent has shot
+ */
+Ship YuBellPlayer::scoreShipPlacement(Ship ship) {
+  int score = 0;
+  if (ship.direction == Horizontal) {
+    for (int shipPart = ship.col; shipPart < ship.col + ship.length; ++shipPart) {
+      score += opponentsHits[ship.row][shipPart];
+    }
+  }
+  ship.score = score;
+  return ship;
+}
+
+/**
+ * @brief Creates a new vector<Ship> where ships with higher scores appear more often, so they will be chosen more often
+ */
+vector<Ship> YuBellPlayer::getScoreAdjustedPositions(vector<Ship> positions) {
+  vector<Ship> scoredPositions;
+  
+  for (unsigned int i = 0; i < positions.size(); ++i) {
+    Ship currentShip = positions.at(i);
+    double scoreDouble = (1.0/(double)currentShip.score) * 10000.0;
+    int finalScore = (int) (scoreDouble + 0.5);
+    cout << "score for " << currentShip.row << ", " << currentShip.col << ": " << finalScore << endl;
+    
+    //add score number of copies to the list of ship positions
+    for (int copy = 0; copy < finalScore; ++copy) {
+      scoredPositions.push_back(currentShip);
+    }
+  }
+
+  cout << "scored positions size: " << scoredPositions.size() << endl;
+
+  return scoredPositions;
 }
 
 /**
