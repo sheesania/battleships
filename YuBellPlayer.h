@@ -13,12 +13,15 @@ using namespace std;
 #include "Message.h"
 #include "defines.h"
 
-struct Ship {
-	int row;
-	int col;
-	int length;
-  Direction direction;
-	int score;
+class Ship {
+	public:
+		int row;
+		int col;
+		int length;
+	  Direction direction;
+		double score;
+
+		bool operator<(const Ship &ship) const;
 };
 
 class YuBellPlayer: public PlayerV2 {

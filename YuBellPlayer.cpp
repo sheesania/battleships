@@ -10,11 +10,16 @@
 #include <cstdio>
 #include <vector>
 #include <cstdlib>
+#include <algorithm>
 
 #include "conio.h"
 #include "YuBellPlayer.h"
 
 using namespace conio;
+
+bool Ship::operator<( const Ship &ship ) const {
+  return score < ship.score;
+}
 
 /**
  * @brief Constructor that initializes any inter-round data structures.
@@ -30,7 +35,7 @@ YuBellPlayer::YuBellPlayer( int boardSize )
 {
     // Initialize inter-round structures
     initializeProbMap(this->opponentsHits);
-    
+
     srand(time(NULL));
 }
 
@@ -97,7 +102,7 @@ void YuBellPlayer::initializeProbMap(int probMap[MAX_BOARD_SIZE][MAX_BOARD_SIZE]
 void YuBellPlayer::printProbMap() {
   for (int row = 0; row < boardSize; row++) {
 		for (int col = 0; col < boardSize; col++) {
-      cout << conio::gotoRowCol(20 + row, 30 + col) << opponentsHits[row][col] << " " << flush;
+      cout << opponentsHits[row][col] << " ";
 		}
     cout << endl;
 	}
@@ -107,7 +112,7 @@ void YuBellPlayer::printProbMap() {
 void YuBellPlayer::printShipsPlaced() {
   for (int row = 0; row < boardSize; row++) {
 		for (int col = 0; col < boardSize; col++) {
-      cout << conio::gotoRowCol(20 + row, 30 + col) << shipsPlaced[row][col] << " " << flush;
+      cout << shipsPlaced[row][col] << " ";
 		}
     cout << endl;
 	}
@@ -123,8 +128,6 @@ void YuBellPlayer::printShipsPlaced() {
  * Message constructor.
  */
 Message YuBellPlayer::getMove() {
-    printShipsPlaced();
-
     lastCol++;
     if( lastCol >= boardSize ) {
     	lastCol = 0;
@@ -189,40 +192,37 @@ Message YuBellPlayer::placeShip(int length) {
         }
         //if it wouldn't, score the position and add to possible positions
         if (shipFits) {
-          Ship ship = {row, col, length, Horizontal, 1};
+          Ship ship = {row, col, length, Horizontal, 1.0};
           ship = scoreShipPlacement(ship);
           possiblePositions.push_back(ship);
         }
       }
     }
-    
+
     //print possible positions
     for (vector<Ship>::iterator it = possiblePositions.begin(); it < possiblePositions.end(); it++) {
       cout << "Length " << length << ", " << it->row << ", " << it->col << ", score: " << it->score << endl;
     }
-    
+
     //get new list of possible positions adjusted for score, so more attractive positions appear more in the list
     vector<Ship> possiblePositionsScored = getScoreAdjustedPositions(possiblePositions);
+    cout << "# possiblePositionsScored: " << possiblePositionsScored.size() << endl;
     //choose a random position from this list
     int random = rand() % possiblePositionsScored.size();
     Ship shipPlacement = possiblePositionsScored.at(random);
-    
+
     cout << "Chosen ship: " << shipPlacement.row << ", " << shipPlacement.col << ", length " << length << endl;
 
     //update map of placed ships
     for (int shipPart = shipPlacement.col; shipPart < shipPlacement.col + length; ++shipPart) {
       shipsPlaced[shipPlacement.row][shipPart] = 1;
     }
-    
+
     //print map of placed ships
-    for (int row = 0; row < boardSize; ++row) {
-      for (int col = 0; col < boardSize; ++col) {
-        cout << shipsPlaced[row][col] << " ";
-      }
-      cout << endl;
-    }
+    printShipsPlaced();
+    cout << endl;
     printProbMap();
-    
+
     //prepare response with chosen ship placement
     // parameters = mesg type (PLACE_SHIP), row, col, a string, direction (Horizontal/Vertical)
     Message response( PLACE_SHIP, shipPlacement.row, shipPlacement.col, shipName, Horizontal, length );
@@ -235,7 +235,7 @@ Message YuBellPlayer::placeShip(int length) {
  * @brief Returns a Ship with updated placement score based on where opponent has shot
  */
 Ship YuBellPlayer::scoreShipPlacement(Ship ship) {
-  int score = 0;
+  int score = 0.0;
   if (ship.direction == Horizontal) {
     for (int shipPart = ship.col; shipPart < ship.col + ship.length; ++shipPart) {
       score += opponentsHits[ship.row][shipPart];
@@ -249,21 +249,42 @@ Ship YuBellPlayer::scoreShipPlacement(Ship ship) {
  * @brief Creates a new vector<Ship> where ships with higher scores appear more often, so they will be chosen more often
  */
 vector<Ship> YuBellPlayer::getScoreAdjustedPositions(vector<Ship> positions) {
-  vector<Ship> scoredPositions;
-  
+  //invert scores so ships with currently lower scores (ie fewer shots by opponents) receive higher scores (ie more attractive placement spot)
+  vector<Ship> rawDoubleScorePositions;
   for (unsigned int i = 0; i < positions.size(); ++i) {
     Ship currentShip = positions.at(i);
-    double scoreDouble = (1.0/(double)currentShip.score) * 10000.0;
-    int finalScore = (int) (scoreDouble + 0.5);
-    cout << "score for " << currentShip.row << ", " << currentShip.col << ": " << finalScore << endl;
-    
-    //add score number of copies to the list of ship positions
-    for (int copy = 0; copy < finalScore; ++copy) {
+    double adjustedScore = (1.0/(double)currentShip.score) * 10000.0;
+    currentShip.score = adjustedScore;
+    rawDoubleScorePositions.push_back(currentShip);
+  }
+
+  //find the top 5 scored placements and multiply them to increase their chances of being chosen
+  sort(rawDoubleScorePositions.rbegin(), rawDoubleScorePositions.rend());
+  int multiplier = (rawDoubleScorePositions.size() - 5);
+  //cout << "multiplier: " << multiplier << endl;
+  for (vector<Ship>::iterator it = rawDoubleScorePositions.begin(); it < rawDoubleScorePositions.begin() + 5; ++it) {
+    it->score *= multiplier;
+  }
+
+  // cout << "top 5: " << endl;
+  // for (vector<Ship>::iterator it = rawDoubleScorePositions.begin(); it < rawDoubleScorePositions.begin() + 5; ++it) {
+  //   cout << "\tscore: " << it->score << endl;
+  // }
+  //
+  // for (unsigned int i = 0; i < rawDoubleScorePositions.size(); ++i) {
+  //   Ship currentShip = rawDoubleScorePositions.at(i);
+  //   cout << "score for " << currentShip.row << ", " << currentShip.col << ": " << currentShip.score << endl;
+  // }
+
+  //then make a list with [score] number of copies of each Ship
+  vector<Ship> scoredPositions;
+  for (unsigned int i = 0; i < rawDoubleScorePositions.size(); ++i) {
+    Ship currentShip = rawDoubleScorePositions.at(i);
+    int scoreInt = (int) currentShip.score + 0.5;
+    for (int copy = 0; copy < scoreInt; ++copy) {
       scoredPositions.push_back(currentShip);
     }
   }
-
-  cout << "scored positions size: " << scoredPositions.size() << endl;
 
   return scoredPositions;
 }
