@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <cstdio>
+#include <vector>
 
 #include "conio.h"
 #include "YuBellPlayer.h"
@@ -46,6 +47,14 @@ void YuBellPlayer::initializeBoard() {
 	        this->board[row][col] = WATER;
 	     }
     }
+}
+
+void YuBellPlayer::initializeShipsPlaced() {
+  for(int row=0; row<boardSize; row++) {
+     for(int col=0; col<boardSize; col++) {
+        this->shipsPlaced[row][col] = 0;
+     }
+  }
 }
 
 void YuBellPlayer::initializeProbMap(int probMap[MAX_BOARD_SIZE][MAX_BOARD_SIZE]) {
@@ -91,6 +100,15 @@ void YuBellPlayer::printProbMap() {
   cout << endl << endl;
 }
 
+void YuBellPlayer::printShipsPlaced() {
+  for (int row = 0; row < boardSize; row++) {
+		for (int col = 0; col < boardSize; col++) {
+      cout << conio::gotoRowCol(20 + row, 30 + col) << shipsPlaced[row][col] << " " << flush;
+		}
+    cout << endl;
+	}
+  cout << endl << endl;
+}
 
 /**
  * @brief Specifies the AI's shot choice and returns the information to the caller.
@@ -101,6 +119,8 @@ void YuBellPlayer::printProbMap() {
  * Message constructor.
  */
 Message YuBellPlayer::getMove() {
+    printShipsPlaced();
+
     lastCol++;
     if( lastCol >= boardSize ) {
     	lastCol = 0;
@@ -123,11 +143,13 @@ void YuBellPlayer::newRound() {
     /* DumbPlayer is too simple to do any inter-round learning. Smarter players
      * reinitialize any round-specific data structures here.
      */
+
     this->lastRow = 0;
     this->lastCol = -1;
     this->numShipsPlaced = 0;
 
     this->initializeBoard();
+    this->initializeShipsPlaced();
 }
 
 /**
@@ -145,13 +167,37 @@ void YuBellPlayer::newRound() {
  * 6. ship length (should match the length passed to placeShip)
  */
 Message YuBellPlayer::placeShip(int length) {
+    //Create a numbered ship name (Ship0, Ship1, Ship2, ...)
     char shipName[10];
-    // Create ship names each time called: Ship0, Ship1, Ship2, ...
     snprintf(shipName, sizeof shipName, "Ship%d", numShipsPlaced);
+
+    vector<Ship> possiblePositions;
+
+    //possible horizontal positions
+    for (int row = 0; row < boardSize; ++row) {
+      for (int col = 0; col < boardSize - length; ++col) {
+        //see if a ship starting from this position would not run into any existing ships
+        bool shipFits = true;
+        for (int shipPart = col; shipPart < col + length; ++shipPart) {
+          if (shipsPlaced[row][shipPart] != 0) {
+            shipFits = false;
+          }
+        }
+        if (shipFits) {
+          Ship ship = {row, col, Horizontal};
+          possiblePositions.push_back(ship);
+        }
+      }
+    }
 
     // parameters = mesg type (PLACE_SHIP), row, col, a string, direction (Horizontal/Vertical)
     Message response( PLACE_SHIP, numShipsPlaced, 0, shipName, Horizontal, length );
     numShipsPlaced++;
+
+    // update map of placed ships
+    for (int col = 0; col < length; ++col) {
+      shipsPlaced[numShipsPlaced][col] = 1;
+    }
 
     return response;
 }
