@@ -34,6 +34,7 @@ YuBellPlayer::YuBellPlayer( int boardSize )
     :PlayerV2(boardSize)
 {
     // Initialize inter-round structures
+    this->currentRound = 0;
     initializeProbMap(this->opponentsHits);
 
     srand(time(NULL));
@@ -151,6 +152,7 @@ void YuBellPlayer::newRound() {
      * reinitialize any round-specific data structures here.
      */
 
+    this->currentRound++;
     this->lastRow = 0;
     this->lastCol = -1;
     this->numShipsPlaced = 0;
@@ -179,53 +181,87 @@ Message YuBellPlayer::placeShip(int length) {
     snprintf(shipName, sizeof shipName, "Ship%d", numShipsPlaced);
 
     vector<Ship> possiblePositions;
+    
+    //reverse direction of all ships every round
+    Direction direction;
+    if (currentRound % 2 == 0) {
+      direction = Vertical;
+    } else {
+      direction = Horizontal;
+    }
+    
+    cout << "DIRECTION: " << direction << endl;
 
     //find possible horizontal positions
-    for (int row = 0; row < boardSize; ++row) {
-      for (int col = 0; col < boardSize - length; ++col) {
-        //see if a ship starting from this position would not run into any existing ships
-        bool shipFits = true;
-        for (int shipPart = col; shipPart < col + length; ++shipPart) {
-          if (shipsPlaced[row][shipPart] != 0) {
-            shipFits = false;
+    if (direction == Horizontal) {
+      for (int row = 0; row < boardSize; ++row) {
+        for (int col = 0; col < boardSize - length; ++col) {
+          //see if a ship starting from this position would not run into any existing ships
+          bool shipFits = true;
+          for (int shipPart = col; shipPart < col + length; ++shipPart) {
+            if (shipsPlaced[row][shipPart] != 0) {
+              shipFits = false;
+            }
+          }
+          //if it wouldn't, score the position and add to possible positions
+          if (shipFits) {
+            Ship ship = {row, col, length, Horizontal, 1.0};
+            ship = scoreShipPlacement(ship);
+            possiblePositions.push_back(ship);
           }
         }
-        //if it wouldn't, score the position and add to possible positions
-        if (shipFits) {
-          Ship ship = {row, col, length, Horizontal, 1.0};
-          ship = scoreShipPlacement(ship);
-          possiblePositions.push_back(ship);
+      }
+    }
+    
+    //find possible vertical positions
+    if (direction == Vertical) {
+      for (int row = 0; row < boardSize - length; ++row) {
+        for (int col = 0; col < boardSize; ++col) {
+          //see if a ship starting from this position would not run into any existing ships
+          bool shipFits = true;
+          for (int shipPart = row; shipPart < row + length; ++shipPart) {
+            if (shipsPlaced[shipPart][col] != 0) {
+              shipFits = false;
+            }
+          }
+          //if it wouldn't, score the position and add to possible positions
+          if (shipFits) {
+            Ship ship = {row, col, length, Vertical, 1.0};
+            ship = scoreShipPlacement(ship);
+            possiblePositions.push_back(ship);
+          }
         }
       }
     }
 
     //print possible positions
     for (vector<Ship>::iterator it = possiblePositions.begin(); it < possiblePositions.end(); it++) {
-      cout << "Length " << length << ", " << it->row << ", " << it->col << ", score: " << it->score << endl;
+      //cout << "Length " << length << ", " << it->row << ", " << it->col << ", score: " << it->score << endl;
     }
 
     //get new list of possible positions adjusted for score, so more attractive positions appear more in the list
     vector<Ship> possiblePositionsScored = getScoreAdjustedPositions(possiblePositions);
-    cout << "# possiblePositionsScored: " << possiblePositionsScored.size() << endl;
+    //cout << "# possiblePositionsScored: " << possiblePositionsScored.size() << endl;
     //choose a random position from this list
     int random = rand() % possiblePositionsScored.size();
     Ship shipPlacement = possiblePositionsScored.at(random);
 
-    cout << "Chosen ship: " << shipPlacement.row << ", " << shipPlacement.col << ", length " << length << endl;
+    //cout << "Chosen ship: " << shipPlacement.row << ", " << shipPlacement.col << ", length " << length << endl;
 
     //update map of placed ships
-    for (int shipPart = shipPlacement.col; shipPart < shipPlacement.col + length; ++shipPart) {
-      shipsPlaced[shipPlacement.row][shipPart] = 1;
-    }
+    updatePlacedShips(shipPlacement);
+    //for (int shipPart = shipPlacement.col; shipPart < shipPlacement.col + length; ++shipPart) {
+    //  shipsPlaced[shipPlacement.row][shipPart] = 1;
+    //}
 
     //print map of placed ships
     printShipsPlaced();
-    cout << endl;
-    printProbMap();
+    //cout << endl;
+    //printProbMap();
 
     //prepare response with chosen ship placement
     // parameters = mesg type (PLACE_SHIP), row, col, a string, direction (Horizontal/Vertical)
-    Message response( PLACE_SHIP, shipPlacement.row, shipPlacement.col, shipName, Horizontal, length );
+    Message response( PLACE_SHIP, shipPlacement.row, shipPlacement.col, shipName, shipPlacement.direction, length );
     numShipsPlaced++;
 
     return response;
@@ -239,6 +275,11 @@ Ship YuBellPlayer::scoreShipPlacement(Ship ship) {
   if (ship.direction == Horizontal) {
     for (int shipPart = ship.col; shipPart < ship.col + ship.length; ++shipPart) {
       score += opponentsHits[ship.row][shipPart];
+    }
+  }
+  if (ship.direction == Vertical) {
+    for (int shipPart = ship.row; shipPart < ship.row + ship.length; ++shipPart) {
+      score += opponentsHits[shipPart][ship.col];
     }
   }
   ship.score = score;
@@ -287,6 +328,22 @@ vector<Ship> YuBellPlayer::getScoreAdjustedPositions(vector<Ship> positions) {
   }
 
   return scoredPositions;
+}
+
+/**
+ * @brief Updates the map of where we have placed ships, with the given ship
+ */
+void YuBellPlayer::updatePlacedShips(Ship ship) {
+  if (ship.direction == Horizontal) {
+    for (int shipPart = ship.col; shipPart < ship.col + ship.length; ++shipPart) {
+        shipsPlaced[ship.row][shipPart] = 1;
+    }
+  }
+  if (ship.direction == Vertical) {
+    for (int shipPart = ship.row; shipPart < ship.row + ship.length; ++shipPart) {
+        shipsPlaced[shipPart][ship.col] = 1;
+    }
+  }
 }
 
 /**

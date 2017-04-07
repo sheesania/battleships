@@ -41,10 +41,12 @@ class YuBellPlayer: public PlayerV2 {
 
       int opponentsHits[MAX_BOARD_SIZE][MAX_BOARD_SIZE]; //where the opponent has shot
       int shipsPlaced[MAX_BOARD_SIZE][MAX_BOARD_SIZE]; //where we have placed ships this round
+      int currentRound; //how many rounds we have played up to this one
       void initializeProbMap(int probMap[MAX_BOARD_SIZE][MAX_BOARD_SIZE]); //populate a probability map with intial values
       void initializeShipsPlaced();
       Ship scoreShipPlacement(Ship ship);
       vector<Ship> getScoreAdjustedPositions(vector<Ship> positions);
+      void updatePlacedShips(Ship ship);
 
     	void initializeBoard();
       int lastRow;
