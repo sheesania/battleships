@@ -11,6 +11,7 @@
 #include <vector>
 #include <cstdlib>
 #include <algorithm>
+#include <stack>
 
 #include "conio.h"
 #include "YuBellPlayer.h"
@@ -35,7 +36,9 @@ YuBellPlayer::YuBellPlayer( int boardSize )
 {
     // Initialize inter-round structures
     this->currentRound = 0;
+    this->emptyPoint = {-1, -1};
     initializeProbMap(this->opponentsHits);
+    initializeProbMap(this->attackProbabilities);
 
     srand(time(NULL));
 }
@@ -120,6 +123,7 @@ void YuBellPlayer::printShipsPlaced() {
   cout << endl << endl;
 }
 
+
 /**
  * @brief Specifies the AI's shot choice and returns the information to the caller.
  * @return Message The most important parts of the returned message are
@@ -129,18 +133,153 @@ void YuBellPlayer::printShipsPlaced() {
  * Message constructor.
  */
 Message YuBellPlayer::getMove() {
-    lastCol++;
-    if( lastCol >= boardSize ) {
-    	lastCol = 0;
-    	lastRow++;
-    }
-    if( lastRow >= boardSize ) {
-    	lastCol = 0;
-    	lastRow = 0;
+    vector<int> rowMoves;
+    vector<int> colMoves;
+
+    if (hits.size() > 0) {
+      if (hits.size() > 1) {
+        if (hits.back().row == hits.at(hits.size() - 2).row) {
+          Point right = findOpenSpaceRight(hits.back().row, hits.back().col);
+          Point left = findOpenSpaceLeft(hits.back().row, hits.back().col);
+          if (right.row != -1) {
+            rowMoves.push_back(right.row);
+            colMoves.push_back(right.col);
+          }
+          if (left.row != -1) {
+            rowMoves.push_back(left.row);
+            colMoves.push_back(left.col);
+          }
+        }
+        if (hits.back().col == hits.at(hits.size() - 2).col) {
+          Point up = findOpenSpaceUp(hits.back().row, hits.back().col);
+          Point down = findOpenSpaceDown(hits.back().row, hits.back().col);
+          if (up.row != -1) {
+            rowMoves.push_back(up.row);
+            colMoves.push_back(up.col);
+          }
+          if (down.row != -1) {
+            rowMoves.push_back(down.row);
+            colMoves.push_back(down.col);
+          }
+        }
+      }
+
+      if (rowMoves.size() == 0) {
+        Point hit = hits.back();
+        if (onBoard(hit.row+1, hit.col) && board[hit.row+1][hit.col] == WATER) {
+          rowMoves.push_back(hit.row+1);
+          colMoves.push_back(hit.col);
+        }
+        if (onBoard(hit.row, hit.col+1) && board[hit.row][hit.col+1] == WATER) {
+          rowMoves.push_back(hit.row);
+          colMoves.push_back(hit.col+1);
+        }
+        if (onBoard(hit.row-1, hit.col) && board[hit.row-1][hit.col] == WATER) {
+          rowMoves.push_back(hit.row-1);
+          colMoves.push_back(hit.col);
+        }
+        if (onBoard(hit.row, hit.col-1) && board[hit.row][hit.col-1] == WATER) {
+          rowMoves.push_back(hit.row);
+          colMoves.push_back(hit.col-1);
+        }
+      }
     }
 
-    Message result( SHOT, lastRow, lastCol, "Bang", None, 1 );
+    if (rowMoves.size() == 0) {
+      int max = getAttackMax();
+      for (int r = 0; r < boardSize; r++) {
+          for (int c = 0; c < boardSize; c++) {
+              if (attackMap[r][c] == max && board[r][c] == WATER){
+                rowMoves.push_back(r);
+                colMoves.push_back(c);
+              }
+          }
+      }
+    }
+
+    int random = rand() % rowMoves.size();
+    int finalR = rowMoves.at(random);
+    int finalC = colMoves.at(random);
+    Message result( SHOT, finalR, finalC, "Bang", None, 1 );
     return result;
+}
+
+Point YuBellPlayer::findOpenSpaceRight(int row, int col) {
+  if (!onBoard(row, col+1)) {
+    return emptyPoint;
+  }
+  else if (board[row][col+1] == WATER) {
+    Point point = {row, col+1};
+    return point;
+  }
+  else if (board[row][col+1] == HIT) {
+    return findOpenSpaceRight(row, col+1);
+  }
+  else {
+    return emptyPoint;
+  }
+}
+
+Point YuBellPlayer::findOpenSpaceLeft(int row, int col) {
+  if (!onBoard(row, col-1)) {
+    return emptyPoint;
+  }
+  else if (board[row][col-1] == WATER) {
+    Point point = {row, col-1};
+    return point;
+  }
+  else if (board[row][col-1] == HIT) {
+    return findOpenSpaceLeft(row, col-1);
+  }
+  else {
+    return emptyPoint;
+  }
+}
+
+Point YuBellPlayer::findOpenSpaceUp(int row, int col) {
+  if (!onBoard(row+1, col)) {
+    return emptyPoint;
+  }
+  else if (board[row+1][col] == WATER) {
+    Point point = {row+1, col};
+    return point;
+  }
+  else if (board[row+1][col] == HIT) {
+    return findOpenSpaceUp(row+1, col);
+  }
+  else {
+    return emptyPoint;
+  }
+}
+
+Point YuBellPlayer::findOpenSpaceDown(int row, int col) {
+  if (!onBoard(row-1, col)) {
+    return emptyPoint;
+  }
+  else if (board[row-1][col] == WATER) {
+    Point point = {row-1, col};
+    return point;
+  }
+  else if (board[row-1][col] == HIT) {
+    return findOpenSpaceDown(row-1, col);
+  }
+  else {
+    return emptyPoint;
+  }
+}
+
+int YuBellPlayer::getAttackMax(){
+    int max = 0;
+    bool first = true;
+    for (int r = 0; r < boardSize; r++) {
+        for (int c = 0; c < boardSize; c++) {
+            if ((attackMap[r][c] > max || first) && board[r][c] == WATER){
+              max = attackMap[r][c];
+              first = false;
+            }
+        }
+    }
+    return max;
 }
 
 /**
@@ -148,14 +287,21 @@ Message YuBellPlayer::getMove() {
  * The AI show reinitialize any intra-round data structures.
  */
 void YuBellPlayer::newRound() {
-    /* DumbPlayer is too simple to do any inter-round learning. Smarter players
-     * reinitialize any round-specific data structures here.
-     */
-
     this->currentRound++;
-    this->lastRow = 0;
-    this->lastCol = -1;
     this->numShipsPlaced = 0;
+    this->killCount = 0;
+
+    for (int row = 0; row < boardSize; ++row) {
+      for (int col = 0; col < boardSize; ++col) {
+        attackMap[row][col] = 4*attackProbabilities[row][col];
+      }
+    }
+
+    for (int row = 0; row < boardSize; ++row) {
+      for (int col = 0; col < boardSize; ++col) {
+        shipPlacementScoring[row][col] = 3*opponentsHits[row][col];
+      }
+    }
 
     this->initializeBoard();
     this->initializeShipsPlaced();
@@ -181,7 +327,7 @@ Message YuBellPlayer::placeShip(int length) {
     snprintf(shipName, sizeof shipName, "Ship%d", numShipsPlaced);
 
     vector<Ship> possiblePositions;
-    
+
     //reverse direction of all ships every round
     Direction direction;
     if (currentRound % 2 == 0) {
@@ -189,11 +335,9 @@ Message YuBellPlayer::placeShip(int length) {
     } else {
       direction = Horizontal;
     }
-    
-    cout << "DIRECTION: " << direction << endl;
 
     //find possible horizontal positions
-    if (direction == Horizontal) {
+    //if (direction == Horizontal) {
       for (int row = 0; row < boardSize; ++row) {
         for (int col = 0; col < boardSize - length; ++col) {
           //see if a ship starting from this position would not run into any existing ships
@@ -211,10 +355,10 @@ Message YuBellPlayer::placeShip(int length) {
           }
         }
       }
-    }
-    
+  //  }
+
     //find possible vertical positions
-    if (direction == Vertical) {
+    //if (direction == Vertical) {
       for (int row = 0; row < boardSize - length; ++row) {
         for (int col = 0; col < boardSize; ++col) {
           //see if a ship starting from this position would not run into any existing ships
@@ -232,7 +376,7 @@ Message YuBellPlayer::placeShip(int length) {
           }
         }
       }
-    }
+    //}
 
     //print possible positions
     for (vector<Ship>::iterator it = possiblePositions.begin(); it < possiblePositions.end(); it++) {
@@ -255,14 +399,40 @@ Message YuBellPlayer::placeShip(int length) {
     //}
 
     //print map of placed ships
-    printShipsPlaced();
+    //printShipsPlaced();
     //cout << endl;
     //printProbMap();
 
     //prepare response with chosen ship placement
     // parameters = mesg type (PLACE_SHIP), row, col, a string, direction (Horizontal/Vertical)
     Message response( PLACE_SHIP, shipPlacement.row, shipPlacement.col, shipName, shipPlacement.direction, length );
+    shipLengths.push_back(length);
     numShipsPlaced++;
+
+    if (shipPlacement.direction == Vertical) {
+      for (int row = shipPlacement.row; row < shipPlacement.row + length; ++row) {
+        if (onBoard(row, shipPlacement.col-1))
+          shipPlacementScoring[row][shipPlacement.col-1] += 1000;
+        if (onBoard(row, shipPlacement.col+1))
+          shipPlacementScoring[row][shipPlacement.col+1] += 1000;
+      }
+      if (onBoard(shipPlacement.row - 1, shipPlacement.col))
+        shipPlacementScoring[shipPlacement.row - 1][shipPlacement.col] += 1000;
+      if (onBoard(shipPlacement.row + length, shipPlacement.col))
+        shipPlacementScoring[shipPlacement.row + length][shipPlacement.col] += 1000;
+    }
+    if (shipPlacement.direction == Horizontal) {
+      for (int col = shipPlacement.col; col < shipPlacement.col + length; ++col) {
+        if (onBoard(shipPlacement.row-1, col))
+          shipPlacementScoring[shipPlacement.row-1][col] += 1000;
+        if (onBoard(shipPlacement.row+1, col))
+          shipPlacementScoring[shipPlacement.row+1][col] += 1000;
+      }
+      if (onBoard(shipPlacement.row, shipPlacement.col - 1))
+        shipPlacementScoring[shipPlacement.row][shipPlacement.col-1] += 1000;
+      if (onBoard(shipPlacement.row, shipPlacement.col + length))
+        shipPlacementScoring[shipPlacement.row][shipPlacement.col + length] += 1000;
+    }
 
     return response;
 }
@@ -274,12 +444,12 @@ Ship YuBellPlayer::scoreShipPlacement(Ship ship) {
   int score = 0.0;
   if (ship.direction == Horizontal) {
     for (int shipPart = ship.col; shipPart < ship.col + ship.length; ++shipPart) {
-      score += opponentsHits[ship.row][shipPart];
+      score += shipPlacementScoring[ship.row][shipPart];
     }
   }
   if (ship.direction == Vertical) {
     for (int shipPart = ship.row; shipPart < ship.row + ship.length; ++shipPart) {
-      score += opponentsHits[shipPart][ship.col];
+      score += shipPlacementScoring[shipPart][ship.col];
     }
   }
   ship.score = score;
@@ -306,16 +476,6 @@ vector<Ship> YuBellPlayer::getScoreAdjustedPositions(vector<Ship> positions) {
   for (vector<Ship>::iterator it = rawDoubleScorePositions.begin(); it < rawDoubleScorePositions.begin() + 5; ++it) {
     it->score *= multiplier;
   }
-
-  // cout << "top 5: " << endl;
-  // for (vector<Ship>::iterator it = rawDoubleScorePositions.begin(); it < rawDoubleScorePositions.begin() + 5; ++it) {
-  //   cout << "\tscore: " << it->score << endl;
-  // }
-  //
-  // for (unsigned int i = 0; i < rawDoubleScorePositions.size(); ++i) {
-  //   Ship currentShip = rawDoubleScorePositions.at(i);
-  //   cout << "score for " << currentShip.row << ", " << currentShip.col << ": " << currentShip.score << endl;
-  // }
 
   //then make a list with [score] number of copies of each Ship
   vector<Ship> scoredPositions;
@@ -346,15 +506,65 @@ void YuBellPlayer::updatePlacedShips(Ship ship) {
   }
 }
 
+void YuBellPlayer::missed(int row, int col){
+    for (int shipNum = 0; shipNum < shipLengths.size(); shipNum++) {
+        for (int i = 1; i < shipLengths.at(shipNum); i++){
+            if(onBoard(row+i))
+                attackMap[row+i][col] -= 1;
+            if(onBoard(row-i))
+                attackMap[row-i][col] -= 1;
+            if(onBoard(col+i))
+                attackMap[row][col+i] -= 1;
+            if(onBoard(col-i))
+                attackMap[row][col-i] -= 1;
+        }
+    }
+}
+
+bool YuBellPlayer::onBoard(int x){
+    return x >= 0 && x < MAX_BOARD_SIZE;
+}
+
+bool YuBellPlayer::onBoard(int x, int y){
+  return onBoard(x) && onBoard(y);
+}
+
 /**
  * @brief Updates the AI with the results of its shots and where the opponent is shooting.
  * @param msg Message specifying what happened + row/col as appropriate.
  */
 void YuBellPlayer::update(Message msg) {
+  if (msg.getMessageType() != KILL && killCount > 0) {
+    for (int i = 0; i < shipLengths.size(); i++) {
+      if (shipLengths.at(i) == killCount) {
+        shipLengths.erase(shipLengths.begin() + i);
+        break;
+      }
+    }
+    killCount = 0;
+  }
     switch(msg.getMessageType()) {
 	case HIT:
+      board[msg.getRow()][msg.getCol()] = msg.getMessageType();
+      attackProbabilities[msg.getRow()][msg.getCol()] += 1;
+      Point hit;
+      hit.row = msg.getRow();
+      hit.col = msg.getCol();
+      hits.push_back(hit);
+      break;
 	case KILL:
+      board[msg.getRow()][msg.getCol()] = msg.getMessageType();
+      missed(msg.getRow(), msg.getCol());
+      for (int i = 0; i < hits.size(); i++) {
+        Point hit = hits.at(i);
+        if (hit.row == msg.getRow() && hit.col == msg.getCol()) {
+          hits.erase(hits.begin() + i);
+        }
+      }
+      killCount++;
+      break;
 	case MISS:
+      missed(msg.getRow(), msg.getCol());
 	    board[msg.getRow()][msg.getCol()] = msg.getMessageType();
 	    break;
 	case WIN:
